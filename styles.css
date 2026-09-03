@@ -1,0 +1,32 @@
+/* تحسين شريط الملاحة والجداول */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.card {
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.table th, .table td {
+    padding: 12px 15px;
+}
+
+
+.price-up {
+    animation: priceGreen 1s ease-in-out;
+}
+
+.price-down {
+    animation: priceRed 1s ease-in-out;
+}
+
+@keyframes priceGreen {
+    0% { background-color: #d4edda; color: #155724; }
+    100% { background-color: transparent; }
+}
+
+@keyframes priceRed {
+    0% { background-color: #f8d7da; color: #721c24; }
+    100% { background-color: transparent; }
+}
