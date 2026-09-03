@@ -1,73 +1,124 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="en" dir="ltr" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>متابع الأسهم اللحظي</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <title>Stock Market Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="styles.css">
 </head>
-<body class="bg-light">
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col">
 
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm mb-4">
-        <div class="container">
-            <a class="navbar-brand fw-bold text-warning" href="#">Stock Market Tracker</a>
+    <!-- Navbar -->
+    <nav class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="p-2 bg-emerald-500/10 text-emerald-400 rounded-lg border border-emerald-500/20">
+                    <i class="fa-solid fa-chart-line text-xl"></i>
+                </div>
+                <span class="text-xl font-bold bg-gradient-to-r from-emerald-400 to-teal-200 bg-clip-text text-transparent">
+                    Stock Market Tracker
+                </span>
+            </div>
             
-            <div id="auth-section">
-                <div id="login-form-container" class="d-flex gap-2 align-items-center">
-                    <input type="text" id="auth-username" class="form-control form-control-sm" placeholder="اسم المستخدم">
-                    <input type="password" id="auth-password" class="form-control form-control-sm" placeholder="كلمة المرور">
-                    <button onclick="login()" class="btn btn-primary btn-sm px-3">دخول</button>
-                    <button onclick="register()" class="btn btn-outline-light btn-sm">حساب جديد</button>
+            <div id="auth-section" class="flex items-center gap-3">
+                <div id="connection-status" class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                    <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span> Connecting...
                 </div>
 
-                <div id="user-info-container" class="d-none">
-                    <span id="user-display" class="text-white me-3 fw-bold"></span>
-                    <button onclick="logout()" class="btn btn-danger btn-sm">خروج</button>
+                <button id="open-auth-btn" onclick="toggleModal('auth-modal')" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-semibold transition-all">
+                    <i class="fa-solid fa-user"></i> Login / Register
+                </button>
+
+                <div id="user-info-container" class="hidden flex items-center gap-3">
+                    <span id="user-display" class="text-sm font-semibold text-slate-200"></span>
+                    <button onclick="logout()" class="px-3 py-1.5 bg-red-600/20 hover:bg-red-600/40 text-red-400 rounded-lg text-xs font-bold border border-red-500/30 transition-all">
+                        Logout
+                    </button>
                 </div>
             </div>
         </div>
     </nav>
 
-    <div class="container">
-        <div id="add-stock-card" class="card shadow-sm mb-4 border-0 d-none">
-            <div class="card-header bg-primary text-white fw-bold">إضافة سهم جديد (أدمن فقط)</div>
-            <div class="card-body">
-                <div class="row g-3">
-                    <div class="col-md-5">
-                        <input type="text" id="stock-symbol" class="form-control" placeholder="رمز السهم (مثل: AAPL)">
-                    </div>
-                    <div class="col-md-5">
-                        <input type="number" id="stock-price" class="form-control" placeholder="السعر">
-                    </div>
-                    <div class="col-md-2">
-                        <button onclick="addStock()" class="btn btn-success w-100 fw-bold">إضافة</button>
-                    </div>
-                </div>
-            </div>
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 py-8 flex-1 w-full">
+
+        <!-- Logged Out Alert Notice -->
+        <div id="logged-out-notice" class="bg-slate-900 border border-slate-800 rounded-xl p-8 text-center shadow-xl my-12">
+            <i class="fa-solid fa-lock text-4xl text-emerald-500/40 mb-3"></i>
+            <h2 class="text-xl font-bold text-slate-200 mb-2">Access Restricted</h2>
+            <p class="text-slate-400 text-sm mb-4">Please log in to view the live stock market feed and real-time updates.</p>
+            <button onclick="toggleModal('auth-modal')" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-bold transition-all">
+                Login Now
+            </button>
         </div>
 
-        <div class="card shadow-sm border-0">
-            <div class="card-header bg-dark text-white fw-bold d-flex justify-content-between">
-                <span>قائمة الأسهم</span>
-                <span class="badge bg-danger">مباشر 🔴</span>
+        <!-- Main Dashboard Container (Hidden when logged out) -->
+        <div id="dashboard-container" class="hidden">
+
+            <!-- Admin Add Stock Card -->
+            <div id="add-stock-card" class="hidden bg-slate-900 border border-slate-800 rounded-xl p-5 mb-8 shadow-xl">
+                <div class="text-emerald-400 font-bold mb-4 text-sm flex items-center gap-2">
+                    <i class="fa-solid fa-shield-halved"></i> Add New Stock (Admin Only)
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+                    <input type="text" id="stock-symbol" placeholder="Symbol (e.g. AAPL)" autocomplete="off" class="md:col-span-2 bg-slate-950 border border-slate-800 rounded-lg px-4 py-2.5 text-slate-100 uppercase focus:outline-none focus:border-emerald-500">
+                    <input type="number" id="stock-price" placeholder="Initial Price ($)" autocomplete="off" class="md:col-span-2 bg-slate-950 border border-slate-800 rounded-lg px-4 py-2.5 text-slate-100 focus:outline-none focus:border-emerald-500">
+                    <button onclick="addStock()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg py-2.5 transition-all">Add Stock</button>
+                </div>
             </div>
-            <div class="card-body p-0">
-                <table class="table table-hover mb-0 text-center align-middle">
-                    <thead class="table-secondary">
+
+            <!-- Summary & Search Section -->
+            <div class="flex flex-col md:flex-row justify-between items-center gap-4 mb-6">
+                <div class="flex items-center gap-2 text-sm text-slate-400">
+                    <span>Total Stocks Tracked:</span>
+                    <span id="total-stocks-count" class="font-bold text-emerald-400 text-base">0</span>
+                </div>
+
+                <!-- Search Bar with autocomplete="off" -->
+                <div class="relative w-full md:w-80">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-slate-500 text-sm"></i>
+                    <input type="text" id="search-stock-input" onkeyup="filterStocks()" autocomplete="off" name="search_stock_field" placeholder="Search stock symbol..." 
+                        class="w-full bg-slate-900 border border-slate-800 rounded-lg pl-10 pr-4 py-2 text-sm text-slate-100 focus:outline-none focus:border-emerald-500">
+                </div>
+            </div>
+
+            <!-- Stocks Table -->
+            <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-xl">
+                <table class="w-full text-left">
+                    <thead class="bg-slate-950/60 text-slate-400 text-xs uppercase border-b border-slate-800">
                         <tr>
-                            <th>الرمز</th>
-                            <th>السعر الحالي</th>
-                            <th>الإجراءات</th>
+                            <th class="py-4 px-6">Symbol</th>
+                            <th class="py-4 px-6">Current Price</th>
+                            <th class="py-4 px-6 text-center">Actions</th>
                         </tr>
                     </thead>
-                    <tbody id="stocks-table-body"></tbody>
+                    <tbody id="stocks-table-body" class="divide-y divide-slate-800/60 text-sm"></tbody>
                 </table>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal: Authentication -->
+    <div id="auth-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl max-w-sm w-full p-6 relative shadow-2xl">
+            <button onclick="toggleModal('auth-modal')" class="absolute right-4 top-4 text-slate-400 hover:text-white">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <h3 class="text-xl font-bold mb-4 text-emerald-400">Sign In / Register</h3>
+            <div class="space-y-4">
+                <input type="text" id="auth-username" autocomplete="username" placeholder="Username" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-emerald-500">
+                <input type="password" id="auth-password" autocomplete="current-password" placeholder="Password" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-emerald-500">
+                <div class="flex gap-2">
+                    <button onclick="login()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-lg transition-all">Login</button>
+                    <button onclick="register()" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-2.5 rounded-lg border border-slate-700 transition-all">Register</button>
+                </div>
             </div>
         </div>
     </div>
 
+    <!-- Scripts -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/7.0.12/signalr.min.js"></script>
     <script src="app.js"></script>
 </body>

@@ -1,13 +1,16 @@
 const API_BASE_URL = 'http://localhost:5205/api';
 
+// ==========================================
+// 1. Authentication Handling
+// ==========================================
 
 async function login() {
     const usernameInput = document.getElementById('auth-username');
     const passwordInput = document.getElementById('auth-password');
-    const username = usernameInput.value;
-    const password = passwordInput.value;
+    const username = usernameInput.value.trim();
+    const password = passwordInput.value.trim();
 
-    if (!username || !password) return alert('يرجى ملء كافة الحقول');
+    if (!username || !password) return alert('Please fill in all fields.');
 
     try {
         const response = await fetch(`${API_BASE_URL}/auth/login`, {
@@ -21,44 +24,53 @@ async function login() {
             localStorage.setItem('token', data.token);
             localStorage.setItem('role', data.role);
             localStorage.setItem('username', data.username);
-            
+
             usernameInput.value = '';
             passwordInput.value = '';
-            
+
+            // تفريغ شريط البحث تماماً عند تسجيل الدخول
+            const searchInput = document.getElementById('search-stock-input');
+            if (searchInput) searchInput.value = '';
+
+            toggleModal('auth-modal');
             updateAuthUI();
-            loadStocks(); 
+            await loadStocks();
         } else {
-            alert('بيانات الدخول غير صحيحة.');
+            alert('Invalid username or password.');
         }
     } catch (err) {
-        alert('تعذر الاتصال بالسيرفر. تأكد من تشغيل الـ Backend.');
+        alert('Could not connect to server.');
     }
 }
 
 async function register() {
-    const username = document.getElementById('auth-username').value;
-    const password = document.getElementById('auth-password').value;
+    const username = document.getElementById('auth-username').value.trim();
+    const password = document.getElementById('auth-password').value.trim();
 
-    if (!username || !password) return alert('يرجى ملء كافة الحقول');
+    if (!username || !password) return alert('Please fill in all fields.');
 
-    
-    const response = await fetch(`${API_BASE_URL}/auth/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
-    });
+    try {
+        const response = await fetch(`${API_BASE_URL}/auth/register`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        });
 
-    if (response.ok) {
-        alert('تم إنشاء حساب مستخدم (User) بنجاح! قم بتسجيل الدخول الآن.');
-    } else {
-        alert('حدث خطأ أثناء إنشاء الحساب (قد يكون اسم المستخدم مأخوذاً).');
+        if (response.ok) {
+            alert('User account created successfully! You can now log in.');
+        } else {
+            alert('An error occurred during registration.');
+        }
+    } catch (err) {
+        alert('Could not connect to server.');
     }
 }
 
 function logout() {
     localStorage.clear();
+    const searchInput = document.getElementById('search-stock-input');
+    if (searchInput) searchInput.value = '';
     updateAuthUI();
-    loadStocks();
 }
 
 function updateAuthUI() {
@@ -66,37 +78,54 @@ function updateAuthUI() {
     const username = localStorage.getItem('username');
     const role = localStorage.getItem('role');
 
-    const loginBox = document.getElementById('login-form-container');
+    const openAuthBtn = document.getElementById('open-auth-btn');
     const userBox = document.getElementById('user-info-container');
     const addStockCard = document.getElementById('add-stock-card');
+    const dashboardContainer = document.getElementById('dashboard-container');
+    const loggedOutNotice = document.getElementById('logged-out-notice');
 
     if (token) {
-        if (loginBox) loginBox.classList.add('d-none');
+        // حالة تسجيل الدخول: إظهار القائمة بالكامل وإخفاء رسالة التنبيه
+        if (openAuthBtn) openAuthBtn.classList.add('hidden');
+        if (loggedOutNotice) loggedOutNotice.classList.add('hidden');
+        if (dashboardContainer) dashboardContainer.classList.remove('hidden');
+
         if (userBox) {
-            userBox.classList.remove('d-none');
-            document.getElementById('user-display').innerHTML = `<i class="bi bi-person-circle"></i> ${username} <span class="badge bg-warning text-dark">${role}</span>`;
+            userBox.classList.remove('hidden');
+            document.getElementById('user-display').innerHTML = `
+                <i class="fa-solid fa-circle-user"></i> ${username} 
+                <span class="px-2 py-0.5 text-xs rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">${role}</span>
+            `;
         }
-        
-        // إظهار كارت الإضافة للأدمن فقط
+
         if (addStockCard) {
             if (role === 'Admin') {
-                addStockCard.classList.remove('d-none');
+                addStockCard.classList.remove('hidden');
             } else {
-                addStockCard.classList.add('d-none');
+                addStockCard.classList.add('hidden');
             }
         }
     } else {
-        if (loginBox) loginBox.classList.remove('d-none');
-        if (userBox) userBox.classList.add('d-none');
-        if (addStockCard) addStockCard.classList.add('d-none');
+        // حالة عدم تسجيل الدخول: إخفاء القائمة بالكامل وإظهار رسالة التنبيه
+        if (openAuthBtn) openAuthBtn.classList.remove('hidden');
+        if (userBox) userBox.classList.add('hidden');
+        if (addStockCard) addStockCard.classList.add('hidden');
+        if (dashboardContainer) dashboardContainer.classList.add('hidden');
+        if (loggedOutNotice) loggedOutNotice.classList.remove('hidden');
+
+        const tbody = document.getElementById('stocks-table-body');
+        if (tbody) tbody.innerHTML = '';
     }
 }
 
 // ==========================================
-// 2. إدارة الأسهم وقائمة العرض
+// 2. Stock List & Rendering
 // ==========================================
 
 async function loadStocks() {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
     try {
         const response = await fetch(`${API_BASE_URL}/stocks`);
         const stocks = await response.json();
@@ -104,8 +133,9 @@ async function loadStocks() {
         if (tbody) tbody.innerHTML = '';
 
         stocks.forEach(stock => renderStockRow(stock));
+        updateStockCount();
     } catch (err) {
-        console.error("خطأ في جلب الأسهم:", err);
+        console.error("Error fetching stocks:", err);
     }
 }
 
@@ -121,95 +151,123 @@ function renderStockRow(arg1, arg2) {
 
     let existingRow = document.getElementById(`row-${symbol}`);
 
-    // إتاحة خيار الحذف للأدمن فقط
     const actionCellHtml = (role === 'Admin')
-        ? `<button onclick="deleteStock('${symbol}')" class="btn btn-outline-danger btn-sm">
-                <i class="bi bi-trash"></i> حذف
+        ? `<button onclick="deleteStock('${symbol}')" class="text-slate-500 hover:text-red-400 transition-colors">
+                <i class="fa-solid fa-trash"></i> Delete
            </button>`
-        : `<span class="text-muted small">عرض فقط</span>`;
+        : `<span class="text-slate-600 text-xs">Read-only</span>`;
 
     if (!existingRow) {
-        tbody.innerHTML += `
-            <tr id="row-${symbol}">
-                <td class="fw-bold">${symbol}</td>
-                <td id="price-${symbol}">${price} $</td>
-                <td id="action-${symbol}">${actionCellHtml}</td>
-            </tr>
+        const tr = document.createElement('tr');
+        tr.id = `row-${symbol}`;
+        tr.className = 'hover:bg-slate-800/30 transition-colors border-b border-slate-800/60';
+        tr.innerHTML = `
+            <td class="py-4 px-6 font-bold text-emerald-400">${symbol}</td>
+            <td id="price-${symbol}" class="py-4 px-6 font-mono font-bold text-slate-100">$${Number(price).toFixed(2)}</td>
+            <td id="action-${symbol}" class="py-4 px-6 text-center">${actionCellHtml}</td>
         `;
+        tbody.appendChild(tr);
+        filterStocks();
     } else {
-        // تحديث خانة الإجراءات عند تغيير حالة تسجيل الدخول
         const actionCell = document.getElementById(`action-${symbol}`);
         if (actionCell) actionCell.innerHTML = actionCellHtml;
     }
+
+    updateStockCount();
 }
 
 async function addStock() {
     const symbolInput = document.getElementById('stock-symbol');
     const priceInput = document.getElementById('stock-price');
-    const symbol = symbolInput.value.toUpperCase();
+    const symbol = symbolInput.value.trim().toUpperCase();
     const price = parseFloat(priceInput.value);
     const token = localStorage.getItem('token');
 
-    if (!token) return alert('يجب تسجيل الدخول لإضافة سهم.');
-    if (!symbol || isNaN(price)) return alert('ادخل بيانات السهم كاملة وبشكل صحيح.');
+    if (!token) return alert('You must be logged in.');
+    if (!symbol || isNaN(price)) return alert('Please enter valid stock details.');
 
-    const response = await fetch(`${API_BASE_URL}/stocks`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ symbol, price })
-    });
+    try {
+        const response = await fetch(`${API_BASE_URL}/stocks`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ symbol, price })
+        });
 
-    if (response.ok) {
-        symbolInput.value = '';
-        priceInput.value = '';
-        renderStockRow(symbol, price);
-    } else if (response.status === 403) {
-        alert('حسابك لا يملك صلاحيات Admin لإضافة أسهم.');
-    } else {
-        alert('تعذر إضافة السهم.');
+        if (response.ok) {
+            symbolInput.value = '';
+            priceInput.value = '';
+            renderStockRow(symbol, price);
+        } else if (response.status === 403) {
+            alert('Admin permissions required.');
+        } else {
+            alert('Failed to add stock.');
+        }
+    } catch (err) {
+        alert('Error connecting to server.');
     }
 }
 
 async function deleteStock(symbol) {
     const token = localStorage.getItem('token');
+    if (!token) return alert('Admin permissions required.');
+    if (!confirm(`Are you sure you want to delete ${symbol}?`)) return;
 
-    if (!token) return alert('يجب تسجيل الدخول كـ Admin لحذف السهم!');
+    try {
+        const response = await fetch(`${API_BASE_URL}/stocks/${symbol}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
 
-    const response = await fetch(`${API_BASE_URL}/stocks/${symbol}`, {
-        method: 'DELETE',
-        headers: {
-            'Authorization': `Bearer ${token}`
+        if (response.ok) {
+            const row = document.getElementById(`row-${symbol}`);
+            if (row) row.remove();
+            updateStockCount();
+        } else {
+            alert('Failed to delete stock.');
         }
-    });
-
-    if (response.ok) {
-        const row = document.getElementById(`row-${symbol}`);
-        if (row) {
-            row.classList.add('animate__animated', 'animate__fadeOutLeft');
-            setTimeout(() => row.remove(), 500);
-        }
-    } else if (response.status === 403) {
-        alert('حسابك لا يملك صلاحيات Admin للحذف.');
-    } else {
-        alert('حدث خطأ أثناء الحذف.');
+    } catch (err) {
+        alert('Connection error.');
     }
 }
 
+function filterStocks() {
+    const searchInput = document.getElementById('search-stock-input');
+    if (!searchInput) return;
+
+    const query = searchInput.value.trim().toUpperCase();
+    const rows = document.querySelectorAll('#stocks-table-body tr');
+
+    rows.forEach(row => {
+        const symbol = row.getAttribute('id').replace('row-', '').toUpperCase();
+        row.style.display = symbol.includes(query) ? '' : 'none';
+    });
+
+
+    
+}
+
+function updateStockCount() {
+    const countEl = document.getElementById('total-stocks-count');
+    const rows = document.querySelectorAll('#stocks-table-body tr');
+    if (countEl) countEl.innerText = rows.length;
+}
+
 // ==========================================
-// 3. إعداد اتصال SignalR للأسعار الحية
+// 3. SignalR Streaming Updates
 // ==========================================
 
 const connection = new signalR.HubConnectionBuilder()
     .withUrl("http://localhost:5205/stockHub")
+    .withAutomaticReconnect()
     .configureLogging(signalR.LogLevel.Information)
     .build();
 
 connection.on("ReceivePriceUpdate", (arg1, arg2) => {
-    console.log(arg1);
-    console.log(arg2);
     let symbol, newPrice;
 
     if (typeof arg1 === 'object' && arg1 !== null) {
@@ -230,21 +288,38 @@ connection.on("ReceivePriceUpdate", (arg1, arg2) => {
     }
 
     if (priceCell) {
-        const oldPrice = parseFloat(priceCell.innerText) || 0;
-        priceCell.innerText = `${newPrice} $`;
+        const oldPrice = parseFloat(priceCell.innerText.replace('$', '')) || 0;
+        priceCell.innerText = `$${Number(newPrice).toFixed(2)}`;
 
         priceCell.classList.remove('price-up', 'price-down');
-        void priceCell.offsetWidth; // Trigger Reflow
+        void priceCell.offsetWidth;
         priceCell.classList.add(newPrice >= oldPrice ? 'price-up' : 'price-down');
     }
 });
 
-connection.start()
-    .then(() => console.log("✅ متصل بـ SignalR بنجاح!"))
-    .catch(err => console.error("❌ فشل الاتصال بـ SignalR:", err));
+connection.onreconnected(() => {
+    loadStocks();
+});
 
-// التشغيل الابتدائي عند تحميل الصفحة
+connection.start()
+    .then(() => {
+        const statusEl = document.getElementById('connection-status');
+        if (statusEl) {
+            statusEl.className = "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
+            statusEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400"></span> Live 🔴`;
+        }
+    })
+    .catch(err => console.error("❌ SignalR Connection Failed:", err));
+
+function toggleModal(id) {
+    const modal = document.getElementById(id);
+    modal.classList.toggle('hidden');
+    modal.classList.toggle('flex');
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+    const searchInput = document.getElementById('search-stock-input');
+    if (searchInput) searchInput.value = '';
     updateAuthUI();
     loadStocks();
 });
