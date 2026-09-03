@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  db:
+    image: mysql:8.0
+    container_name: stock_mysql_db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: stockdb
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: stock_backend_api
+    ports:
+      - "7086:80"
+    environment:
+      - ConnectionStrings__DefaultConnection=Server=db;Database=stockdb;User=root;Password=rootpassword;
+    depends_on:
+      - db
+
+  frontend:
+    image: nginx:alpine
+    container_name: stock_frontend_app
+    ports:
+      - "8080:80"
+    volumes:
+      - ./index.html:/usr/share/nginx/html/index.html:ro
+    depends_on:
+      - backend
+
+volumes:
+  mysql_data:
