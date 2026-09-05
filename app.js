@@ -28,7 +28,7 @@ async function login() {
             usernameInput.value = '';
             passwordInput.value = '';
 
-            // تفريغ شريط البحث تماماً عند تسجيل الدخول
+            // Clear the search bar completely on login
             const searchInput = document.getElementById('search-stock-input');
             if (searchInput) searchInput.value = '';
 
@@ -85,7 +85,7 @@ function updateAuthUI() {
     const loggedOutNotice = document.getElementById('logged-out-notice');
 
     if (token) {
-        // حالة تسجيل الدخول: إظهار القائمة بالكامل وإخفاء رسالة التنبيه
+        // Logged in: show the full dashboard and hide the logged-out notice
         if (openAuthBtn) openAuthBtn.classList.add('hidden');
         if (loggedOutNotice) loggedOutNotice.classList.add('hidden');
         if (dashboardContainer) dashboardContainer.classList.remove('hidden');
@@ -106,7 +106,7 @@ function updateAuthUI() {
             }
         }
     } else {
-        // حالة عدم تسجيل الدخول: إخفاء القائمة بالكامل وإظهار رسالة التنبيه
+        // Logged out: hide the dashboard and show the logged-out notice
         if (openAuthBtn) openAuthBtn.classList.remove('hidden');
         if (userBox) userBox.classList.add('hidden');
         if (addStockCard) addStockCard.classList.add('hidden');
@@ -163,7 +163,10 @@ function renderStockRow(arg1, arg2) {
         tr.className = 'hover:bg-slate-800/30 transition-colors border-b border-slate-800/60';
         tr.innerHTML = `
             <td class="py-4 px-6 font-bold text-emerald-400">${symbol}</td>
-            <td id="price-${symbol}" class="py-4 px-6 font-mono font-bold text-slate-100">$${Number(price).toFixed(2)}</td>
+            <td id="price-${symbol}" class="py-4 px-6 font-mono font-bold text-slate-100">
+                <span id="price-value-${symbol}">$${Number(price).toFixed(2)}</span>
+                <span id="price-change-${symbol}" class="ml-2 text-xs font-semibold text-slate-500">0.00%</span>
+            </td>
             <td id="action-${symbol}" class="py-4 px-6 text-center">${actionCellHtml}</td>
         `;
         tbody.appendChild(tr);
@@ -246,9 +249,6 @@ function filterStocks() {
         const symbol = row.getAttribute('id').replace('row-', '').toUpperCase();
         row.style.display = symbol.includes(query) ? '' : 'none';
     });
-
-
-    
 }
 
 function updateStockCount() {
@@ -268,6 +268,9 @@ const connection = new signalR.HubConnectionBuilder()
     .build();
 
 connection.on("ReceivePriceUpdate", (arg1, arg2) => {
+    // Debug log: prints whatever came from the server, before any parsing
+    console.log("📩 [SignalR] ReceivePriceUpdate raw args:", arg1, arg2);
+
     let symbol, newPrice;
 
     if (typeof arg1 === 'object' && arg1 !== null) {
@@ -278,31 +281,59 @@ connection.on("ReceivePriceUpdate", (arg1, arg2) => {
         newPrice = arg2;
     }
 
-    if (!symbol) return;
+    // Debug log: prints the parsed values
+    console.log(`💰 [SignalR] Parsed -> Symbol: ${symbol}, New Price: ${newPrice}`);
+
+    if (!symbol) {
+        console.warn("⚠️ [SignalR] Empty symbol — message ignored.");
+        return;
+    }
 
     let priceCell = document.getElementById(`price-${symbol}`);
 
     if (!priceCell) {
+        console.log(`ℹ️ [SignalR] No existing row for ${symbol}, creating one.`);
         renderStockRow(symbol, newPrice);
         priceCell = document.getElementById(`price-${symbol}`);
     }
 
     if (priceCell) {
-        const oldPrice = parseFloat(priceCell.innerText.replace('$', '')) || 0;
-        priceCell.innerText = `$${Number(newPrice).toFixed(2)}`;
+        const priceValueEl = document.getElementById(`price-value-${symbol}`);
+        const priceChangeEl = document.getElementById(`price-change-${symbol}`);
+
+        const oldPrice = parseFloat(priceValueEl.innerText.replace('$', '')) || 0;
+        priceValueEl.innerText = `$${Number(newPrice).toFixed(2)}`;
 
         priceCell.classList.remove('price-up', 'price-down');
         void priceCell.offsetWidth;
         priceCell.classList.add(newPrice >= oldPrice ? 'price-up' : 'price-down');
+
+        // Calculate and display the percentage change badge
+        if (priceChangeEl && oldPrice > 0) {
+            const percentChange = ((newPrice - oldPrice) / oldPrice) * 100;
+            const sign = percentChange >= 0 ? '+' : '';
+            const arrow = percentChange >= 0 ? '▲' : '▼';
+
+            priceChangeEl.innerText = `${arrow} ${sign}${percentChange.toFixed(2)}%`;
+            priceChangeEl.className = percentChange >= 0
+                ? 'ml-2 text-xs font-semibold text-emerald-400'
+                : 'ml-2 text-xs font-semibold text-red-400';
+        }
+
+        console.log(`✅ [SignalR] Updated price: ${symbol} from $${oldPrice} to $${Number(newPrice).toFixed(2)}`);
+    } else {
+        console.error(`❌ [SignalR] Could not find price cell for ${symbol} even after renderStockRow.`);
     }
 });
 
 connection.onreconnected(() => {
+    console.log("🔄 [SignalR] Reconnected, refreshing stock list.");
     loadStocks();
 });
 
 connection.start()
     .then(() => {
+        console.log("✅ [SignalR] Connected to the hub.");
         const statusEl = document.getElementById('connection-status');
         if (statusEl) {
             statusEl.className = "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
