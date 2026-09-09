@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Stock Market Tracker</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- SweetAlert2 Library -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="styles.css">
 </head>
@@ -21,14 +24,14 @@
                     Stock Market Tracker
                 </span>
             </div>
-            
+                        
             <div id="auth-section" class="flex items-center gap-3">
                 <div id="connection-status" class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">
                     <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span> Connecting...
                 </div>
 
                 <button id="open-auth-btn" onclick="toggleModal('auth-modal')" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-semibold transition-all">
-                    <i class="fa-solid fa-user"></i> Login / Register
+                    <i class="fa-solid fa-user mr-1.5"></i> Login / Register
                 </button>
 
                 <div id="user-info-container" class="hidden flex items-center gap-3">
@@ -54,8 +57,8 @@
             </button>
         </div>
 
-        <!-- Main Dashboard Container (Hidden when logged out) -->
-        <div id="dashboard-container" class="hidden">
+        <!-- Main Dashboard Container -->
+        <div id="dashboard-container">
 
             <!-- Admin Add Stock Card -->
             <div id="add-stock-card" class="hidden bg-slate-900 border border-slate-800 rounded-xl p-5 mb-8 shadow-xl">
@@ -69,18 +72,47 @@
                 </div>
             </div>
 
-            <!-- Summary & Search Section -->
+            <!-- Admin Create New Admin Card -->
+            <div id="add-admin-card" class="hidden bg-slate-900 border border-slate-800 rounded-xl p-5 mb-8 shadow-xl">
+                <div class="text-emerald-400 font-bold mb-4 text-sm flex items-center gap-2">
+                    <i class="fa-solid fa-user-shield"></i> Create New Admin (Admin Only)
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+                    <input type="text" id="admin-username" placeholder="New Admin Username" autocomplete="off" class="md:col-span-2 bg-slate-950 border border-slate-800 rounded-lg px-4 py-2.5 text-slate-100 focus:outline-none focus:border-emerald-500">
+                    <input type="password" id="admin-password" placeholder="New Admin Password" autocomplete="off" class="md:col-span-2 bg-slate-950 border border-slate-800 rounded-lg px-4 py-2.5 text-slate-100 focus:outline-none focus:border-emerald-500">
+                    <button onclick="createAdmin()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg py-2.5 transition-all">Create Admin</button>
+                </div>
+            </div>
+
+            <!-- Tabs Navigation -->
+            <div id="tabs-container" class="flex items-center gap-2 mb-4">
+                <button id="tab-all-btn" onclick="switchTab('all')" class="px-4 py-2 text-xs font-bold rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 transition-all">
+                    <i class="fa-solid fa-globe mr-1.5"></i> All Stocks
+                </button>
+                <button id="tab-watchlist-btn" onclick="switchTab('watchlist')" class="px-4 py-2 text-xs font-bold rounded-lg text-slate-400 hover:text-white transition-all">
+                    <i class="fa-solid fa-star mr-1.5"></i> My Watchlist
+                </button>
+            </div>
+
+            <!-- Summary, Export & Search Section -->
             <div class="flex flex-col md:flex-row justify-between items-center gap-4 mb-6">
                 <div class="flex items-center gap-2 text-sm text-slate-400">
                     <span>Total Stocks Tracked:</span>
                     <span id="total-stocks-count" class="font-bold text-emerald-400 text-base">0</span>
                 </div>
 
-                <!-- Search Bar with autocomplete="off" -->
-                <div class="relative w-full md:w-80">
-                    <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-slate-500 text-sm"></i>
-                    <input type="text" id="search-stock-input" onkeyup="filterStocks()" autocomplete="off" name="search_stock_field" placeholder="Search stock symbol..." 
-                        class="w-full bg-slate-900 border border-slate-800 rounded-lg pl-10 pr-4 py-2 text-sm text-slate-100 focus:outline-none focus:border-emerald-500">
+                <div class="flex items-center gap-3 w-full md:w-auto">
+                    <!-- Export CSV Button -->
+                    <button onclick="exportToCSV()" class="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 hover:border-slate-700 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 shadow-sm">
+                        <i class="fa-solid fa-file-csv text-emerald-400 text-base"></i> Export CSV
+                    </button>
+
+                    <!-- Search Bar -->
+                    <div class="relative w-full md:w-72">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-slate-500 text-sm"></i>
+                        <input type="text" id="search-stock-input" onkeyup="filterStocks()" autocomplete="off" name="search_stock_field" placeholder="Search stock symbol..." 
+                            class="w-full bg-slate-900 border border-slate-800 rounded-lg pl-10 pr-4 py-2 text-sm text-slate-100 focus:outline-none focus:border-emerald-500">
+                    </div>
                 </div>
             </div>
 
@@ -91,6 +123,8 @@
                         <tr>
                             <th class="py-4 px-6">Symbol</th>
                             <th class="py-4 px-6">Current Price</th>
+                            <th class="py-4 px-6 text-emerald-400"><i class="fa-solid fa-arrow-trend-up mr-1"></i> 24h High</th>
+                            <th class="py-4 px-6 text-rose-400"><i class="fa-solid fa-arrow-trend-down mr-1"></i> 24h Low</th>
                             <th class="py-4 px-6 text-center">Actions</th>
                         </tr>
                     </thead>
@@ -114,6 +148,19 @@
                     <button onclick="login()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-lg transition-all">Login</button>
                     <button onclick="register()" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-2.5 rounded-lg border border-slate-700 transition-all">Register</button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Stock Chart -->
+    <div id="chart-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-2xl shadow-2xl relative">
+            <button onclick="toggleModal('chart-modal')" class="absolute top-4 right-4 text-slate-400 hover:text-white text-lg">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <h3 id="chart-stock-symbol" class="text-xl font-bold text-emerald-400 mb-4">Stock Live Chart</h3>
+            <div class="w-full h-64">
+                <canvas id="stockHistoryChart"></canvas>
             </div>
         </div>
     </div>
